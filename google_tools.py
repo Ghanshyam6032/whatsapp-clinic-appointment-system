@@ -1,18 +1,32 @@
 import os
+import json
 import datetime
 import threading
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from config import (
-    GOOGLE_CREDENTIALS_FILE, GOOGLE_SHEET_ID, GOOGLE_CALENDAR_ID,
+    GOOGLE_CREDENTIALS_JSON, GOOGLE_CREDENTIALS_FILE, GOOGLE_SHEET_ID, GOOGLE_CALENDAR_ID,
     CLINIC_MORNING_START, CLINIC_MORNING_END, CLINIC_EVENING_START, CLINIC_EVENING_END, SLOT_DURATION_MIN,
     logger, TZ
 )
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/calendar']
 creds = None
-if os.path.exists(GOOGLE_CREDENTIALS_FILE):
+
+# Smart Credential Loading: Prefers Railway ENV variable, falls back to local file
+if GOOGLE_CREDENTIALS_JSON:
+    try:
+        service_account_info = json.loads(GOOGLE_CREDENTIALS_JSON)
+        creds = Credentials.from_service_account_info(service_account_info, scopes=SCOPES)
+        logger.info("✅ Google Credentials loaded from Railway Environment Variable.")
+    except Exception as e:
+        logger.error(f"❌ Error parsing GOOGLE_CREDENTIALS_JSON: {e}")
+        raise RuntimeError("Invalid GOOGLE_CREDENTIALS_JSON format.")
+elif os.path.exists(GOOGLE_CREDENTIALS_FILE):
     creds = Credentials.from_service_account_file(GOOGLE_CREDENTIALS_FILE, scopes=SCOPES)
+    logger.info("✅ Google Credentials loaded from local file.")
+else:
+    logger.error("❌ No Google Credentials found. Google services will fail.")
 
 # Concurrency & Lock Management
 PENDING_LOCKS = {}
